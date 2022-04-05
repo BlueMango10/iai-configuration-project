@@ -35,7 +35,7 @@ public class QueensLogic32 implements IQueensLogic {
         if (board[column][row] != 0) return; // Guards against invalid moves
 
         var queen = fact.ithVar(posToVarId(column, row));
-        var newRules = rules.restrict(queen);
+        var newRules = rules.and(queen);
         System.out.println("Has Changed: " + rules.equals(newRules));
         rules = newRules;
         updateBoard(rules);
@@ -50,9 +50,10 @@ public class QueensLogic32 implements IQueensLogic {
         // Jules are combined using conjunction, so the base case is true.
         var rul = fact.one();
 
+        rul = rul.and(eachColumnMustHaveAtLeastOneQueen());
         rul = rul.and(queensMustNotCaptureHorizontally());
         rul = rul.and(queensMustNotCaptureVertically());
-        //rul = rul.and(queensMustNotCaptureDiagonally());
+        rul = rul.and(queensMustNotCaptureDiagonally());
 
         return rul;
     }
@@ -102,7 +103,7 @@ public class QueensLogic32 implements IQueensLogic {
         }
         return rul;
     }
-/*
+
     private BDD queensMustNotCaptureDiagonally() {
         var rul = fact.one();
         for (int row = 0; row < size; row++) {
@@ -123,9 +124,9 @@ public class QueensLogic32 implements IQueensLogic {
     }
 
     private boolean overlapDiagonal(int col1, int row1, int col2, int row2) {
-        
+        return Math.abs(col1 - col2) == Math.abs(row1 - row2);
     }
-*/
+
     /**
      * Assign an incrementing variable to each position on the board
      * Ie. for a 5x5 board:
