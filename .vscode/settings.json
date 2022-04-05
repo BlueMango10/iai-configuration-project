@@ -1,0 +1,6 @@
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "QueensProject/javabdd-1.0b2.jar"
+    ]
+}
