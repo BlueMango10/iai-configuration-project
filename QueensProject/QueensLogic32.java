@@ -14,16 +14,12 @@ public class QueensLogic32 implements IQueensLogic {
         this.size = size;
         this.board = new int[size][size];
 
-        //BDDExamples.main(new String[0]);
-
         int nVars = size * size;
         fact.setVarNum(nVars);
         
         rules = composeRules();
 
-        System.out.println("Is Zero: " + rules.isZero());
-        System.out.println("Is One: " + rules.isOne());
-
+        // Find the initial valid domains (due to the board size)
         updateBoard(rules);
     }
 
@@ -34,12 +30,15 @@ public class QueensLogic32 implements IQueensLogic {
     public void insertQueen(int column, int row) {
         if (board[column][row] != 0) return; // Guards against invalid moves
 
+        // Get the queen we just placed as a BDD
         var queen = fact.ithVar(posToVarId(column, row));
-        var newRules = rules.and(queen);
-        System.out.println("Has Changed: " + rules.equals(newRules));
-        rules = newRules;
+
+        // Add a rule that a queen must be placed in the chosen position for a
+        // solution to be valid.
+        // (It may have been more appropriate to use BDD.restrict, but we could
+        //  not get that approach to work the way we expected it to)
+        rules = rules.and(queen);
         updateBoard(rules);
-        board[column][row] = 1;
     }
     // === End of IQueensLogic === //
 
@@ -58,6 +57,17 @@ public class QueensLogic32 implements IQueensLogic {
         return rul;
     }
 
+    // === Start of Rules === //
+
+    /*
+     * The horizonal, vertical and diagonal rules could easily have been one
+     * function by merging the inner loops, but we kept them seperate for
+     * clarity.
+     */
+
+    /**
+     * A BDD representing the rule that each column must have at least one queen.
+     */
     private BDD eachColumnMustHaveAtLeastOneQueen() {
         var rul = fact.one();
         for (int column = 0; column < size; column++) {
@@ -70,86 +80,107 @@ public class QueensLogic32 implements IQueensLogic {
         return rul;
     }
 
+    /**
+     * A BDD representing the rule that queens must not be able to capture any other
+     * queen horizontally.
+     */
     private BDD queensMustNotCaptureHorizontally() {
         var rul = fact.one();
         for (int row = 0; row < size; row++) {
             for (int column = 0; column < size; column++) {
                 var placedQueen = posToVar(column, row);
                 var notAllowed = fact.zero();
+                // Inner rule creation
                 for (int i = 0; i < size; i++) {
                     if (i != column) {
                         notAllowed = notAllowed.or(posToVar(i, row));
                     }
                 }
+                // End of inner rule creation
                 rul = rul.and(placedQueen.imp(notAllowed.not()));
             }
         }
         return rul;
     }
 
+    /**
+     * A BDD representing the rule that queens must not be able to capture any other
+     * queen vertically.
+     */
     private BDD queensMustNotCaptureVertically() {
         var rul = fact.one();
         for (int row = 0; row < size; row++) {
             for (int column = 0; column < size; column++) {
                 var placedQueen = posToVar(column, row);
                 var notAllowed = fact.zero();
+                // Inner rule creation
                 for (int i = 0; i < size; i++) {
                     if (i != row) {
                         notAllowed = notAllowed.or(posToVar(column, i));
                     }
                 }
+                // End of inner rule creation
                 rul = rul.and(placedQueen.imp(notAllowed.not()));
             }
         }
         return rul;
     }
 
+    /**
+     * A BDD representing the rule that queens must not be able to capture any other
+     * queen diagonally.
+     */
     private BDD queensMustNotCaptureDiagonally() {
         var rul = fact.one();
         for (int row = 0; row < size; row++) {
             for (int column = 0; column < size; column++) {
                 var placedQueen = posToVar(column, row);
                 var notAllowed = fact.zero();
+                // Inner rule creation
                 for (int c = 0; c < size; c++) {
                     for (int r = 0; r < size; r++) {
-                        if (c != column && r != row && overlapDiagonal(column, row, c, r)) {
+                        if (c != column && r != row && alignDiagonal(column, row, c, r)) {
                             notAllowed = notAllowed.or(posToVar(c, r));
                         }
                     }
                 }
+                // End of inner rule creation
                 rul = rul.and(placedQueen.imp(notAllowed.not()));
             }
         }
         return rul;
     }
-
-    private boolean overlapDiagonal(int col1, int row1, int col2, int row2) {
+    
+    /** Check if two positions align diagonally. */
+    private boolean alignDiagonal(int col1, int row1, int col2, int row2) {
         return Math.abs(col1 - col2) == Math.abs(row1 - row2);
     }
 
     /**
-     * Assign an incrementing variable to each position on the board
+     * Assign an incrementing variable to each position on the board.
      * Ie. for a 5x5 board:
-     *  0  1  2  3  4 /n
-     *  5  6  7  8  9 /n
-     * 10 11 12 13 14 /n
-     * 15 16 17 18 19 /n
-     * 20 21 22 23 24
-     * @param column
-     * @param row
-     * @return
+     * <pre>
+     *00 01 02 03 04
+     *05 06 07 08 09
+     *10 11 12 13 14
+     *15 16 17 18 19
+     *20 21 22 23 24
+     * </pre>
      */
     private int posToVarId(int column, int row) {
         return column + row * size;
     }
 
+    /**
+     * Retrieves the BDD corrosponding to the variable at a position on the board.
+     */
     private BDD posToVar(int column, int row) {
         return fact.ithVar(posToVarId(column, row));
     }
 
     /**
      * Returns rul with the restriction that a queen must be placed at
-     * (column, row).
+     * (column, row). (technically a rule)
      */
     private BDD withQueen(BDD rul, int column, int row) {
         var queen = fact.ithVar(posToVarId(column, row));
@@ -158,7 +189,7 @@ public class QueensLogic32 implements IQueensLogic {
 
     /**
      * Returns rul with the restriction that a queen cannot be placed at
-     * (column, row).,
+     * (column, row). (technically a rule)
      */
     private BDD withOutQueen(BDD rul, int column, int row) {
         var queen = fact.nithVar(posToVarId(column, row));
@@ -166,16 +197,18 @@ public class QueensLogic32 implements IQueensLogic {
     }
 
     /**
-     * Check if the a queen can be placed at (column, row) within the current rules/state,
-     * returns 1 if a queen must be placed, returns -1 if a queen can't be placed
-     * and returns 0 if it might be placed.
+     * Check if the a queen can be placed at (column, row) within the current rules/state of the board,
+     * returns 1 if a queen <i>must</i> be placed, returns -1 if a queen <i>can't</i> be placed
+     * and returns 0 if it <i>might</i> be placed.
      */
     private int validDomain(BDD rul, int column, int row) {
         // We must place queen here
+        // (if not doing so would make the rules a contradiction)
         if (withOutQueen(rul, column, row).isZero())
             return 1;
             
         // We cannot place queen here
+        // (if doing so would make the rules a contradiction)
         if (withQueen(rul, column, row).isZero())
             return -1;
         
@@ -186,7 +219,6 @@ public class QueensLogic32 implements IQueensLogic {
     /**
      * Update the board to represent the given rules (including restrictions
      * for queen placement).
-     * @param rul
      */
     private void updateBoard(BDD rul) {
         for (int column = 0; column < size; column++) {
