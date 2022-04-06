@@ -156,6 +156,8 @@ public class QueensLogic32 implements IQueensLogic {
         return Math.abs(col1 - col2) == Math.abs(row1 - row2);
     }
 
+    // === End ofRules === //
+
     /**
      * Assign an incrementing variable to each position on the board.
      * Ie. for a 5x5 board:
